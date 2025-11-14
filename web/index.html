@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OpenCV GL Camera - Real-time image processing web viewer for Android camera frames">
+    <meta name="author" content="OpenCV GL Camera Project">
+    <title>OpenCV GL Camera - Web Viewer</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --secondary: #8b5cf6;
+            --accent: #06b6d4;
+            --success: #10b981;
+            --danger: #f59e0b;
+            --bg-main: #f8fafc;
+            --bg-sidebar: #1e293b;
+            --bg-card: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-light: #94a3b8;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--bg-sidebar);
+            color: white;
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .sidebar-header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--accent), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .sidebar-header p {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.5;
+        }
+
+        .nav-section h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .nav-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav-button {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateX(4px);
+        }
+
+        .nav-button.active {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-color: transparent;
+        }
+
+        .nav-button-icon {
+            font-size: 18px;
+        }
+
+        #stopCameraBtn {
+            display: none;
+            background: linear-gradient(135deg, #ef4444, #f87171);
+        }
+
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger);
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: var(--success);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .viewer-container {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            max-height: 600px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #frameCanvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .viewer-overlay {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            gap: 12px;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .overlay-badge {
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mode-badge {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            padding: 8px 14px;
+            border-radius: 20px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .stat-card {
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-unit {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-left: 4px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .control-btn {
+            padding: 14px 20px;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .control-btn:hover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.05);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .control-btn.primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-color: transparent;
+            color: white;
+        }
+
+        .control-btn.primary:hover {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+        }
+
+        .info-section {
+            display: grid;
+            gap: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .chart-container {
+            padding: 16px;
+            background: var(--bg-main);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        #fpsSparkline {
+            width: 100%;
+            height: 100px;
+        }
+
+        .shortcuts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .shortcut {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: var(--bg-main);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .shortcut kbd {
+            padding: 2px 6px;
+            background: var(--bg-sidebar);
+            color: white;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .diagnostics {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .diagnostics-header {
+            padding: 16px 20px;
+            background: var(--bg-main);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .diagnostics-header h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .diagnostics-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .diagnostics-body.open {
+            max-height: 500px;
+        }
+
+        .diagnostics-grid {
+            padding: 16px 20px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .diagnostic-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: var(--bg-main);
+            border-radius: 8px;
+        }
+
+        .chevron {
+            transition: transform 0.3s ease;
+            color: var(--text-secondary);
+        }
+
+        .diagnostics-header.open .chevron {
+            transform: rotate(180deg);
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 240px;
+            }
+            .main-content {
+                margin-left: 240px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 20px;
+            }
+            .main-content {
+                margin-left: 0;
+                padding: 20px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h1>OpenCV GL</h1>
+            <p>Real-time camera processing and visualization platform</p>
+        </div>
+        
+        <nav class="nav-section">
+            <h3>Camera Controls</h3>
+            <div class="nav-buttons">
+                <button class="nav-button active" id="startCameraBtn">
+                    <span class="nav-button-icon">▶</span>
+                    <span>Start Camera</span>
+                </button>
+                <button class="nav-button" id="stopCameraBtn">
+                    <span class="nav-button-icon">⏹</span>
+                    <span>Stop Camera</span>
+                </button>
+                <button class="nav-button" id="loadFrameBtn">
+                    <span class="nav-button-icon">📷</span>
+                    <span>Load Sample</span>
+                </button>
+            </div>
+        </nav>
+
+        <nav class="nav-section">
+            <h3>Processing</h3>
+            <div class="nav-buttons">
+                <button class="nav-button" id="toggleProcessBtn">
+                    <span class="nav-button-icon">🔄</span>
+                    <span>Toggle Mode</span>
+                </button>
+                <button class="nav-button" id="resetBtn">
+                    <span class="nav-button-icon">↺</span>
+                    <span>Reset</span>
+                </button>
+            </div>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="top-bar">
+            <h2 style="font-size: 28px; font-weight: 700; color: var(--text-primary);">Camera Viewer</h2>
+            <div class="status-badge" id="statusIndicator">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusValue">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="viewer-container" id="frameSurface">
+                <canvas id="frameCanvas"></canvas>
+                <div class="viewer-overlay">
+                    <div class="mode-badge" id="modeChip">Grayscale</div>
+                    <div class="overlay-badge">
+                        <span>FPS:</span>
+                        <span id="fpsValue">0</span>
+                    </div>
+                    <div class="overlay-badge">
+                        <span>Resolution:</span>
+                        <span id="resolutionValue">0x0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Frame Count</div>
+                <div class="stat-value">
+                    <span id="frameCount">0</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Processing Mode</div>
+                <div class="stat-value" style="font-size: 20px;">
+                    <span id="processMode">Grayscale</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Latency</div>
+                <div class="stat-value">
+                    <span id="latencyValue">0.0</span>
+                    <span class="stat-unit">ms</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Last Update</div>
+                <div class="stat-value" style="font-size: 16px;">
+                    <span id="lastUpdate">Never</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Performance Analytics</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="fpsSparkline"></canvas>
+            </div>
+            <div class="shortcuts">
+                <div class="shortcut"><kbd>S</kbd> Start/Stop</div>
+                <div class="shortcut"><kbd>T</kbd> Toggle Mode</div>
+                <div class="shortcut"><kbd>1</kbd> Raw</div>
+                <div class="shortcut"><kbd>2</kbd> Grayscale</div>
+                <div class="shortcut"><kbd>3</kbd> Canny</div>
+                <div class="shortcut"><kbd>R</kbd> Reset</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Frame Information</h3>
+            </div>
+            <div class="info-section">
+                <div class="info-row">
+                    <span class="info-label">Average FPS</span>
+                    <span class="info-value" id="avgFpsValue">0</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Peak FPS</span>
+                    <span class="info-value" id="maxFpsValue">0</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Lowest FPS</span>
+                    <span class="info-value" id="minFpsValue">0</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Average Latency</span>
+                    <span class="info-value" id="avgLatencyValue">0.0 ms</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Max Latency</span>
+                    <span class="info-value" id="maxLatencyValue">0.0 ms</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Camera State</span>
+                    <span class="info-value" id="cameraStateValue">Idle</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Total Frames</span>
+                    <span class="info-value" id="totalFramesValue">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="diagnostics">
+            <div class="diagnostics-header" id="diagnosticsHeader">
+                <h4>Advanced Diagnostics</h4>
+                <span class="chevron">⌄</span>
+            </div>
+            <div class="diagnostics-body" id="diagnosticsBody">
+                <div class="diagnostics-grid">
+                    <div class="diagnostic-item">
+                        <span class="info-label">Mode</span>
+                        <span class="info-value" id="diagModeValue">Grayscale</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="dist/main.js"></script>
+</body>
+</html>
